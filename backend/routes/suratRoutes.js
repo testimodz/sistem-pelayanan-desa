@@ -1,35 +1,40 @@
 const express = require('express');
+const router = express.Router();
+const { protect, petugasOrAdmin, admin } = require('../middleware/authMiddleware');
 const {
   createSurat,
   getAllSurat,
   getSuratById,
   updateSurat,
-  ajukanSurat,
-  prosesSurat,
-  selesaikanSurat,
-  tolakSurat,
   deleteSurat,
-  getStatistikSurat,
+  archiveSurat,
+  getStats,
+  getArsipSurat,    // ✅ TAMBAH INI
+  getLaporan        // ✅ TAMBAH INI
 } = require('../controllers/suratController');
-const { protect } = require('../middleware/auth');
-const { authorize } = require('../middleware/roleAuth');
 
-const router = express.Router();
+// Semua route butuh auth petugas/admin
+router.use(protect);
+router.use(petugasOrAdmin);
 
-// Public routes (dengan authentication)
-router.post('/', protect, createSurat);
-router.get('/', protect, getAllSurat);
-router.get('/:id', protect, getSuratById);
-router.put('/:id', protect, updateSurat);
-router.delete('/:id', protect, deleteSurat);
+// ==================== STATS ====================
+router.get('/stats/summary', getStats);
 
-// Warga routes
-router.patch('/:id/ajukan', protect, authorize('warga'), ajukanSurat);
+// ✅ TAMBAH ROUTE BARU - ARSIP & LAPORAN
+router.get('/arsip', getArsipSurat);      // GET /api/surat/arsip
+router.get('/laporan', getLaporan);       // GET /api/surat/laporan
 
-// Petugas/Admin routes
-router.patch('/:id/proses', protect, authorize('petugas', 'admin'), prosesSurat);
-router.patch('/:id/selesai', protect, authorize('petugas', 'admin'), selesaikanSurat);
-router.patch('/:id/tolak', protect, authorize('petugas', 'admin'), tolakSurat);
-router.get('/stats/all', protect, authorize('petugas', 'admin'), getStatistikSurat);
+// ==================== CRUD ====================
+router.route('/')
+  .get(getAllSurat)
+  .post(createSurat);
+
+router.route('/:id')
+  .get(getSuratById)
+  .put(updateSurat)
+  .delete(admin, deleteSurat);
+
+// ==================== ACTIONS ====================
+router.patch('/:id/archive', archiveSurat);
 
 module.exports = router;

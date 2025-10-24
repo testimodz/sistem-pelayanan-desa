@@ -1,51 +1,153 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// Create axios instance
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: `${API_URL}/api`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-// Interceptor untuk menambahkan token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Add token to requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
-// Surat API
+// Handle response errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ==================== AUTH API ====================
+export const authAPI = {
+  login: async (credentials) => {
+    return api.post('/auth/login', credentials);
+  },
+  
+  register: async (userData) => {
+    return api.post('/auth/register', userData);
+  },
+  
+  getProfile: async () => {
+    return api.get('/auth/profile');
+  },
+  
+  updateProfile: async (userData) => {
+    return api.put('/auth/profile', userData);
+  },
+  
+  changePassword: async (passwords) => {
+    return api.put('/auth/change-password', passwords);
+  },
+};
+
+// ==================== USER API ====================
+export const userAPI = {
+  getAll: async (params = {}) => {
+    return api.get('/users', { params });
+  },
+  
+  getById: async (id) => {
+    return api.get(`/users/${id}`);
+  },
+  
+  create: async (userData) => {
+    return api.post('/users', userData);
+  },
+  
+  update: async (id, userData) => {
+    return api.put(`/users/${id}`, userData);
+  },
+  
+  delete: async (id) => {
+    return api.delete(`/users/${id}`);
+  },
+  
+  updateRole: async (id, role) => {
+    return api.patch(`/users/${id}/role`, { role });
+  },
+};
+
+// ==================== SURAT API ====================
 export const suratAPI = {
-  // Get all surat
-  getAll: (params) => api.get('/surat', { params }),
+  // Get all surat with filters & pagination
+  getAll: async (params = {}) => {
+    return api.get('/surat', { params });
+  },
   
   // Get surat by ID
-  getById: (id) => api.get(`/surat/${id}`),
+  getById: async (id) => {
+    return api.get(`/surat/${id}`);
+  },
   
-  // Create surat
-  create: (data) => api.post('/surat', data),
+  // Create new surat (petugas input manual data pemohon)
+  create: async (suratData) => {
+    return api.post('/surat', suratData);
+  },
   
   // Update surat
-  update: (id, data) => api.put(`/surat/${id}`, data),
+  update: async (id, suratData) => {
+    return api.put(`/surat/${id}`, suratData);
+  },
   
-  // Delete surat
-  delete: (id) => api.delete(`/surat/${id}`),
+  // Delete surat (admin only)
+  delete: async (id) => {
+    return api.delete(`/surat/${id}`);
+  },
   
-  // Ajukan surat
-  ajukan: (id) => api.patch(`/surat/${id}/ajukan`),
+  // Archive/Unarchive surat
+  archive: async (id) => {
+    return api.patch(`/surat/${id}/archive`);
+  },
   
-  // Proses surat (petugas)
-  proses: (id) => api.patch(`/surat/${id}/proses`),
+  // Get statistics
+  getStats: async () => {
+    return api.get('/surat/stats/summary');
+  },
   
-  // Selesaikan surat (petugas)
-  selesai: (id, data) => api.patch(`/surat/${id}/selesai`, data),
+  // ✅ BARU - Get arsip surat (>1 tahun atau yang diarsipkan)
+  getArsip: async (params = {}) => {
+    return api.get('/surat/arsip', { params });
+  },
   
-  // Tolak surat (petugas)
-  tolak: (id, data) => api.patch(`/surat/${id}/tolak`, data),
+  // ✅ BARU - Get laporan/statistik lengkap
+  getLaporan: async (params = {}) => {
+    return api.get('/surat/laporan', { params });
+  },
   
-  // Get statistik
-  getStats: () => api.get('/surat/stats/all'),
+  // NOTE: PDF generation moved to client-side using html2pdf.js
+  // No need for downloadPDF API call anymore
+};
+
+// ==================== DASHBOARD API ====================
+export const dashboardAPI = {
+  getStats: async () => {
+    return api.get('/surat/stats/summary');
+  },
+  
+  getRecentSurat: async (limit = 10) => {
+    return api.get('/surat', { params: { limit } });
+  },
 };
 
 export default api;

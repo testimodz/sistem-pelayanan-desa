@@ -6,7 +6,7 @@ const suratSchema = new mongoose.Schema(
     nomorSurat: {
       type: String,
       unique: true,
-      sparse: true, // Allow null untuk draft
+      sparse: true,
     },
     jenisSurat: {
       type: String,
@@ -98,17 +98,16 @@ const suratSchema = new mongoose.Schema(
       ],
     },
     
-    // Data Pemohon
+    // Data Pemohon Manual (Input Petugas)
     pemohon: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Pemohon harus diisi'],
-    },
-    
-    // Data Pemohon Manual (untuk surat yang dibuat langsung petugas)
-    dataPemohon: {
-      nama: String,
-      nik: String,
+      nama: {
+        type: String,
+        required: [true, 'Nama pemohon harus diisi'],
+      },
+      nik: {
+        type: String,
+        required: [true, 'NIK pemohon harus diisi'],
+      },
       tempatLahir: String,
       tanggalLahir: Date,
       jenisKelamin: {
@@ -122,60 +121,45 @@ const suratSchema = new mongoose.Schema(
         type: String,
         default: 'WNI',
       },
-      alamat: {
-        jalan: String,
-        rt: String,
-        rw: String,
-        dusun: String,
-        desa: String,
-        kecamatan: String,
-        kabupaten: String,
-        provinsi: String,
-        kodePos: String,
-      },
+      alamat: String,
       noTelepon: String,
       email: String,
     },
     
-    // Data Dinamis (Flexible untuk berbagai jenis surat)
+    // Data Dinamis Surat
     dataSurat: {
       type: mongoose.Schema.Types.Mixed,
+      required: true,
       default: {},
     },
     
-    // Status Pengajuan
-    status: {
-      type: String,
-      enum: ['draft', 'diajukan', 'diproses', 'selesai', 'ditolak'],
-      default: 'draft',
-    },
-    
-    // Keterangan/Alasan
+    // Keterangan Tambahan
     keterangan: {
       type: String,
       trim: true,
     },
     
-    // Alasan Penolakan (jika ditolak)
-    alasanPenolakan: {
-      type: String,
-      trim: true,
-    },
-    
-    // Petugas yang Memproses
-    petugasProses: {
+    // Petugas yang Membuat Surat
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      required: true,
     },
     
     // Petugas yang Menandatangani
     petugasTTD: {
-      namaLengkap: String,
-      jabatan: String,
+      namaLengkap: {
+        type: String,
+        required: true,
+      },
+      jabatan: {
+        type: String,
+        default: 'Lurah Sindangrasa',
+      },
       nip: String,
     },
     
-    // File Upload (untuk lampiran)
+    // File Upload
     lampiran: [
       {
         namaFile: String,
@@ -189,21 +173,14 @@ const suratSchema = new mongoose.Schema(
       },
     ],
     
-    // Tracking Waktu
-    tanggalPengajuan: {
-      type: Date,
-    },
-    tanggalProses: {
-      type: Date,
-    },
+    // Tanggal Surat Selesai
     tanggalSelesai: {
       type: Date,
+      default: Date.now,
     },
     
     // File PDF Hasil
-    filePDF: {
-      type: String,
-    },
+    filePDF: String,
     
     // Metadata
     isArchived: {
@@ -217,34 +194,56 @@ const suratSchema = new mongoose.Schema(
 );
 
 // Index untuk query performance
-suratSchema.index({ pemohon: 1, status: 1 });
+suratSchema.index({ 'pemohon.nama': 'text', 'pemohon.nik': 'text' });
 suratSchema.index({ jenisSurat: 1, kategoriSurat: 1 });
 suratSchema.index({ nomorSurat: 1 });
 suratSchema.index({ createdAt: -1 });
+suratSchema.index({ createdBy: 1 });
 
-// Virtual untuk nomor surat otomatis
+// Auto generate nomor surat - FORMAT RESMI PEMERINTAH
 suratSchema.pre('save', async function (next) {
-  if (this.status === 'selesai' && !this.nomorSurat) {
-    // Generate nomor surat otomatis
-    const count = await mongoose.model('Surat').countDocuments({
-      kategoriSurat: this.kategoriSurat,
-      createdAt: {
-        $gte: new Date(new Date().getFullYear(), 0, 1),
-      },
-    });
-    
-    const year = new Date().getFullYear();
-    const kategoriCode = {
-      'layanan-umum': 'LU',
-      'layanan-kependudukan': 'LK',
-      'layanan-nikah': 'LN',
-      'layanan-pertanahan': 'LP',
-      'layanan-lainnya': 'LL',
-    };
-    
-    this.nomorSurat = `${count + 1}/${kategoriCode[this.kategoriSurat]}/DESA/${year}`;
+  if (!this.nomorSurat) {
+    try {
+      const year = new Date().getFullYear();
+      
+      // Count total surat di tahun ini (semua kategori)
+      const count = await mongoose.model('Surat').countDocuments({
+        nomorSurat: { $exists: true, $ne: null },
+        createdAt: {
+          $gte: new Date(year, 0, 1),
+          $lt: new Date(year + 1, 0, 1),
+        },
+      });
+      
+      // Format RESMI: 005/145/Kel.Sindangrasa/2025
+      const kodeKlasifikasi = '005'; // Kode untuk urusan pemerintahan umum
+      const nomorUrut = String(count + 1).padStart(3, '0');
+      
+      this.nomorSurat = `${kodeKlasifikasi}/${nomorUrut}/Kel.Sindangrasa/${year}`;
+      
+      console.log(`✅ Generated nomor surat: ${this.nomorSurat}`);
+    } catch (error) {
+      console.error('❌ Error generating nomor surat:', error);
+    }
   }
   next();
 });
+
+// Method untuk format data pemohon dengan format dd/MM/yyyy
+suratSchema.methods.getFormattedPemohon = function() {
+  const formatDate = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const year = d.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  return {
+    ...this.pemohon,
+    tanggalLahirFormatted: formatDate(this.pemohon.tanggalLahir),
+  };
+};
 
 module.exports = mongoose.model('Surat', suratSchema);

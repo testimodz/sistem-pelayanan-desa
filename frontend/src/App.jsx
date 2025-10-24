@@ -3,8 +3,15 @@ import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
-import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import PilihKategoriSurat from './pages/PilihKategoriSurat';
+import PilihJenisSurat from './pages/PilihJenisSurat';
+import FormSurat from './pages/FormSurat';
+import DaftarSurat from './pages/DaftarSurat';
+import DetailSurat from './pages/DetailSurat';
+import EditSurat from './pages/EditSurat';
+import ArsipSurat from './pages/ArsipSurat';
+import Laporan from './pages/Laporan';
 
 function App() {
   const { user, loading } = useAuth();
@@ -12,16 +19,15 @@ function App() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-green-500 border-t-transparent"></div>
       </div>
     );
   }
 
   return (
     <Routes>
-      {/* Public Routes */}
+      {/* ✅ CUMA LOGIN - HAPUS REGISTER & FORGOT PASSWORD */}
       <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-      <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
 
       {/* Protected Routes */}
       <Route
@@ -34,11 +40,22 @@ function App() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        {/* Nanti akan ditambahkan routes lainnya */}
+        
+        {/* Surat Routes */}
+        <Route path="surat" element={<DaftarSurat />} />
+        <Route path="surat/buat" element={<PilihKategoriSurat />} />
+        <Route path="surat/pilih/:kategori" element={<PilihJenisSurat />} />
+        <Route path="surat/form/:jenisSurat" element={<FormSurat />} />
+        <Route path="surat/edit/:id" element={<EditSurat />} />
+        <Route path="surat/:id" element={<DetailSurat />} />
+        
+        {/* Arsip & Laporan Routes */}
+        <Route path="arsip" element={<ArsipSurat />} />
+        <Route path="laporan" element={<Laporan />} />
       </Route>
 
-      {/* 404 */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 404 - Redirect ke login atau dashboard */}
+      <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
     </Routes>
   );
 }
