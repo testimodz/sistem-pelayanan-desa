@@ -12,6 +12,9 @@ export const useAuth = () => {
   return context;
 };
 
+// ✅ HARDCODE PRODUCTION URL
+const API_URL = 'https://spd-sndg-production.up.railway.app';
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +23,8 @@ export const AuthProvider = ({ children }) => {
   // Load user data - pakai useCallback biar stabil
   const loadUser = useCallback(async () => {
     try {
-      const { data } = await axios.get('http://localhost:8080/api/auth/profile'); // UBAH DISINI
+      // ✅ FIXED - Pakai variable API_URL
+      const { data } = await axios.get(`${API_URL}/api/auth/profile`);
       setUser(data);
     } catch (error) {
       console.error('Error loading user:', error);
@@ -45,7 +49,8 @@ export const AuthProvider = ({ children }) => {
   // Login
   const login = async (email, password) => {
     try {
-      const { data } = await axios.post('http://localhost:8080/api/auth/login', { // UBAH DISINI
+      // ✅ FIXED - Pakai variable API_URL
+      const { data } = await axios.post(`${API_URL}/api/auth/login`, {
         email,
         password,
       });
@@ -64,7 +69,8 @@ export const AuthProvider = ({ children }) => {
   // Register
   const register = async (userData) => {
     try {
-      const { data } = await axios.post('http://localhost:8080/api/auth/register', userData); // UBAH DISINI
+      // ✅ FIXED - Pakai variable API_URL
+      const { data } = await axios.post(`${API_URL}/api/auth/register`, userData);
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setUser(data);
